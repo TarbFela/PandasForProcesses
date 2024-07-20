@@ -249,19 +249,37 @@ class PARC_TimeSeries:
     def corr(self,other):
        return self.series.corr(other.series)
 
-class Events: # a list of pairs of timestamps describing starts and ends of events
+class Events: # a list of pairs of timestamps describing starts and ends of events. Works also as a Pandas Series.
     def __init__(self,ess):
         self.ess = ess
         self.update_series()
         
+    @property
+    def true_duration(self):
+        perc = self.true_duration_percent
+        return perc * self.total_duration
+    @property
+    def true_duration_percent(self):
+        return np.mean(self.series)
+    @property
+    def total_duration(self):
+        return self.series.index[-1] - self.series.index[0]
         
     def pad(self, mins): #exand or contract the size of each event by x mins on each end
-        mins = str(mins) + "m"
-        mins = pd.Timedelta(mins)
-      
-        self.ess = [ [pair[0] - mins, pair[1] + mins] for pair in self.ess]
+        #alternatively, pass a tuple to pad by x minutes before and y minutes after
+        if type(mins) == list or type(mins) == tuple:
+            mins_before = str(mins[0]) + "m"
+            mins_after = str(mins[1]) + "m"
+        else:
+            mins_before = mins_after = str(mins) + "m"
+            
+        mins_before = pd.Timedelta(mins_before)
+        mins_after = pd.Timedelta(mins_after)
+        
+        self.ess = [ [pair[0] - mins_before, pair[1] + mins_after] for pair in self.ess]
         self.merge_overlaps()
         self.update_series()
+    
     def nudge(self, mins): #shift to the future x mins
         mins = str(mins) + "m"
         mins = pd.Timedelta(mins)
@@ -280,6 +298,27 @@ class Events: # a list of pairs of timestamps describing starts and ends of even
                 self.ess[i][1] = self.ess[i+1][1]
                 del self.ess[i+1]
             else: i+=1
+    def combine(self, other, logic = "AND"): #currently no room for other logic, lol
+        if type(other) != type(self): raise(TypeError)
+        #oh this is going to be horrendously innefficient...
+        #steal code from get_event_timestamps
+        newseries = ns = np.add(self.series ,other.series)
+        ess = []
+        start = 0
+        for t, val in zip(ns.index, ns.values):
+            if start == 0: # event hasn't started
+                if val>1: start = t #catch AND condition
+            else: #start has been caught
+                if val<=1:  #catch NAND condition
+                    end = t 
+                    ess.append([start,end]) #add timestamp pair
+                    start = 0 # look for start again...
+        if start != 0: # catch straggler if there is one
+            end = t 
+            ess.append([start,end]) #add timestamp pair
+        ess = Events(ess)
+        return ess
+        
             
     def update_series(self):
         self.linsym = "-"
@@ -561,6 +600,8 @@ def qplot(PARCts, show=True):
                         s.plot(ax[i])
                 else:
                     ts.plot(ax[i])
+            for a in ax:
+                a.grid(True, 'both')
         if show: showplot()
         return
  
