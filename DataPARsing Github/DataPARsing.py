@@ -14,6 +14,9 @@ import pickle
 
 from copy import deepcopy
 
+import os
+import os.path as osp
+
 default_sampling_interval = 10 #mins
 
 color_list = [[0.5, 0.0, 0],
@@ -25,6 +28,12 @@ color_list = [[0.5, 0.0, 0],
 [0.5, 0.5, 1],
 [0.8333333333333333, 0.5, 1]]
 number_of_series = 0
+
+def filename_from_directory():
+    ls = [f for f in os.listdir() if osp.isfile(f) and "PICKLE" in f]
+    for i, f in enumerate(ls):
+        print(f"({i})\t{f}")
+    return ls[int(input())]
 
 class Stopwatch:
     def __init__(self, name=None):
@@ -289,7 +298,8 @@ class Events: # a list of pairs of timestamps describing starts and ends of even
         self.update_series()
     def plot(self, ax, scale=1, y_offset = 0, lintype = None):
         if lintype == None: lintype = self.linsym
-        ax.plot((self.series + y_offset) * scale)
+        for [s,e] in self.ess:
+            ax.axvspan(s,e,color='red',alpha=0.2)
         
     def merge_overlaps(self):
         i = 0
@@ -300,6 +310,8 @@ class Events: # a list of pairs of timestamps describing starts and ends of even
             else: i+=1
     def combine(self, other, logic = "AND"): #currently no room for other logic, lol
         if type(other) != type(self): raise(TypeError)
+        if logic == "AND": thresh = 1
+        elif logic == "OR": thresh = 0
         #oh this is going to be horrendously innefficient...
         #steal code from get_event_timestamps
         newseries = ns = np.add(self.series ,other.series)
@@ -307,9 +319,9 @@ class Events: # a list of pairs of timestamps describing starts and ends of even
         start = 0
         for t, val in zip(ns.index, ns.values):
             if start == 0: # event hasn't started
-                if val>1: start = t #catch AND condition
+                if val>thresh: start = t #catch AND condition
             else: #start has been caught
-                if val<=1:  #catch NAND condition
+                if val<=thresh:  #catch NAND condition
                     end = t 
                     ess.append([start,end]) #add timestamp pair
                     start = 0 # look for start again...
@@ -523,7 +535,8 @@ def getDataQuick(filename, picklename=getTimeString() + "_PICKLE"):
         pickle.dump( data, data_file)
         data_file.close()
     else:
-        picklefilename = input("\nInput The Name of the Pickle File...\n")
+        picklefilename = filename_from_directory()
+        #input("\nInput The Name of the Pickle File...\n")
         data_file = open(picklefilename,'rb')
         data = pickle.load(data_file)
         data_file.close()
