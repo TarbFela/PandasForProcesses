@@ -423,7 +423,7 @@ def bcws2(ts1, ts2, tscomp, precision = 3, verbose = True):
         if newc <= c-w or newc >= c+w: w*= 10
         else: w *= 0.1
         c = newc
-        if verbose: print(c)
+        if verbose: print(f"{c:<10} \t CORR = {newc}")
     return c
         
 
@@ -476,8 +476,12 @@ def getData_v2(filename):
     xlfile_wb = openpyxl.load_workbook(xlfile)
     ws = xlfile_wb["Data Normalize"]
     tags = [c.value for c in ws[1][4:]]
-    descriptions = [c.value for c in ws[2][4:]]
-    units = [c.value for c in ws[3][4:]]
+
+    while None in tags: tags.pop() #sometimes Nones show up at the end. Get rid of them
+    num_cols = len(tags) #remember the number of tags for collection descs and units, etc
+
+    descriptions = [c.value for c in ws[2][4:num_cols+4]]
+    units = [c.value for c in ws[3][4:num_cols+4]]
 
     data_list = [ PARC_TimeSeries(xlfile, i+4, tags[i], descriptions[i],units[i],version = 1) for i, _ in enumerate(tags)]
     data = { str(data.tag):data for data in data_list }
